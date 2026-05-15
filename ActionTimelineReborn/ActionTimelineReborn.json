@@ -3,7 +3,7 @@
   "Name": "ActionTimeline Reborn",
   "InternalName": "ActionTimelineReborn",
   "RepoUrl": "https://github.com/FFXIV-CombatReborn/ActionTimelineReborn",
-  "Description": "Configurable timeline display of all the actions you use.",
+  "Description": "Configurable timeline display of all the actions you use. / 可配置的实时技能时间轴，显示你使用过的所有技能。",
   "ApplicableVersion": "any",
   "Tags": [
     "UI"
@@ -18,7 +18,7 @@
   "LoadPriority": 0,
   "IsTestingExclusive": false,
   "IconUrl": "https://raw.githubusercontent.com/FFXIV-CombatReborn/RebornAssets/main/IconAssets/ATR_Icon.png",
-  "Punchline": "Show your actions in real-time.",
+  "Punchline": "Show your actions in real-time. / 实时显示你的技能时间轴。",
   "ImageUrls":[
      "https://raw.githubusercontent.com/ArchiDog1998/ActionTimelineReborn/main/Images/example.gif"
   ],

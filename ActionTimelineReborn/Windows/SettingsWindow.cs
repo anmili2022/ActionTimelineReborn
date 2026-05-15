@@ -19,7 +19,7 @@ namespace ActionTimelineReborn.Windows
         private float _scale => ImGuiHelpers.GlobalScale;
         private Settings Settings => Plugin.Settings;
 
-        public SettingsWindow() : base("ActionTimelineReborn v" + typeof(SettingsWindow).Assembly.GetName().Version?.ToString() ?? string.Empty)
+        public SettingsWindow() : base($"ActionTimelineReborn 设置 v{typeof(SettingsWindow).Assembly.GetName().Version?.ToString() ?? string.Empty}")
         {
             SizeCondition = ImGuiCond.FirstUseEver;
             Size = new Vector2(300, 490f);
@@ -36,7 +36,7 @@ namespace ActionTimelineReborn.Windows
         {
             if (!ImGui.BeginTabBar("ActionTimelineReborn Bar")) return;
 
-            if (ImGui.BeginTabItem("General"))
+            if (ImGui.BeginTabItem("常规##General"))
             {
                 DrawGeneralSetting();
                 ImGui.EndTabItem();
@@ -49,7 +49,7 @@ namespace ActionTimelineReborn.Windows
 
             foreach (var setting in Settings.TimelineSettings)
             {
-                if (ImGui.BeginTabItem($"TL:{index}"))
+                if (ImGui.BeginTabItem($"时间轴:{index}##TL:{index}"))
                 {
                     if (DrawTimelineSetting(setting))
                     {
@@ -65,7 +65,7 @@ namespace ActionTimelineReborn.Windows
                 Settings.TimelineSettings.Remove(removingSetting);
             }
 
-            if (ImGui.BeginTabItem("Help"))
+            if (ImGui.BeginTabItem("帮助##Help"))
             {
                 DrawHelp();
                 ImGui.EndTabItem();
@@ -110,24 +110,24 @@ namespace ActionTimelineReborn.Windows
         private ushort _aboutAdd = 0;
         private void DrawGeneralSetting()
         {
-            if (ImGui.Button("Add One Timeline"))
+            if (ImGui.Button("添加一个时间轴##Add One Timeline"))
             {
                 Settings.TimelineSettings.Add(new DrawingSettings()
                 {
                     Name = (Settings.TimelineSettings.Count + 1).ToString(),
                 });
             }
-            ImGui.Checkbox("Record Data", ref Settings.Record);
-            ImGui.Checkbox("Show Only In Duty", ref Settings.ShowTimelineOnlyInDuty);
-            ImGui.Checkbox("Show Only In Combat", ref Settings.ShowTimelineOnlyInCombat);
-            ImGui.Checkbox("Hide In Cutscene", ref Settings.HideTimelineInCutscene);
-            ImGui.Checkbox("Hide In Quest Event", ref Settings.HideTimelineInQuestEvent);
-            ImGui.Checkbox("Print Clipping Time On Chat", ref Settings.PrintClipping);
+            ImGui.Checkbox("记录数据##Record Data", ref Settings.Record);
+            ImGui.Checkbox("仅在副本中显示##Show Only In Duty", ref Settings.ShowTimelineOnlyInDuty);
+            ImGui.Checkbox("仅在战斗中显示##Show Only In Combat", ref Settings.ShowTimelineOnlyInCombat);
+            ImGui.Checkbox("过场动画中隐藏##Hide In Cutscene", ref Settings.HideTimelineInCutscene);
+            ImGui.Checkbox("任务事件中隐藏##Hide In Quest Event", ref Settings.HideTimelineInQuestEvent);
+            ImGui.Checkbox("在聊天栏输出 GCD 卡顿时间##Print Clipping Time On Chat", ref Settings.PrintClipping);
             if (Settings.PrintClipping)
             {
                 ImGui.SameLine();
                 ImGui.SetNextItemWidth(100 * _scale);
-                ImGui.DragIntRange2("Clipping Range", ref Settings.PrintClippingMin, ref Settings.PrintClippingMax);
+                ImGui.DragIntRange2("卡顿范围（毫秒）##Clipping Range", ref Settings.PrintClippingMin, ref Settings.PrintClippingMax);
             }
 
             ImGui.NewLine();
@@ -136,20 +136,20 @@ namespace ActionTimelineReborn.Windows
             ImGui.PushStyleColor(ImGuiCol.Button, 0xFF4444AA);
             ImGui.PushStyleColor(ImGuiCol.ButtonActive, 0xFF3333DD);
             ImGui.PushStyleColor(ImGuiCol.ButtonHovered, 0xFF5555BB);
-            if (ImGui.Button("Clear All Timeline Data"))
+            if (ImGui.Button("清空所有时间轴数据##Clear All Timeline Data"))
             {
                 TimelineManager.Instance?.ClearAllData();
-                Svc.Chat.Print("[ActionTimelineReborn] All timeline data cleared.");
+                Svc.Chat.Print("[ActionTimelineReborn] 已清空所有时间轴数据。");
             }
             ImGui.PopStyleColor(3);
-            DrawHelper.SetTooltip("Clears all recorded timeline data and caches. This will free memory and reset the timeline.");
+            DrawHelper.SetTooltip("清空所有已记录的时间轴数据和缓存。此操作会释放内存并重置时间轴。");
             
             ImGui.NewLine();
-            ImGui.Checkbox("Record Target Status", ref Settings.RecordTargetStatus);
+            ImGui.Checkbox("记录目标状态##Record Target Status", ref Settings.RecordTargetStatus);
 
             var index = 0;
 
-            if(ImGui.CollapsingHeader("Showed Statuses"))
+            if(ImGui.CollapsingHeader("已记录过的状态##Showed Statuses"))
             {
                 foreach (var statusId in TimelineManager.ShowedStatusId)
                 {
@@ -168,7 +168,7 @@ namespace ActionTimelineReborn.Windows
             ImGui.SameLine();
             ImGui.NewLine();
 
-            ImGui.Text("Don't record these statuses.");
+            ImGui.Text("不要记录以下状态。");
 
             if (ImGui.BeginChild("ExceptStatus", new Vector2(0f, -1f), true))
             {
@@ -241,35 +241,35 @@ namespace ActionTimelineReborn.Windows
             ImGui.PushItemWidth(80 * _scale);
 
             // general
-            if (ImGui.BeginTabItem("General##Timeline_General"))
+            if (ImGui.BeginTabItem("常规##Timeline_General"))
             {
                 result = DrawGeneralTab(settings);
                 ImGui.EndTabItem();
             }
 
             // icons
-            if (ImGui.BeginTabItem("Icons##Timeline_Icons"))
+            if (ImGui.BeginTabItem("图标##Timeline_Icons"))
             {
                 DrawIconsTab(settings);
                 ImGui.EndTabItem();
             }
 
             // casts
-            if (ImGui.BeginTabItem("Bar##Timeline_Bar"))
+            if (ImGui.BeginTabItem("条形##Timeline_Bar"))
             {
                 DrawBarTab(settings);
                 ImGui.EndTabItem();
             }
 
             // grid
-            if (ImGui.BeginTabItem("Grid##Timeline_Grid"))
+            if (ImGui.BeginTabItem("网格##Timeline_Grid"))
             {
                 DrawGridTab(settings);
                 ImGui.EndTabItem();
             }
 
             // gcd clipping
-            if (ImGui.BeginTabItem("GCD Clipping##Timeline_GCD"))
+            if (ImGui.BeginTabItem("GCD 卡顿##Timeline_GCD"))
             {
                 DrawGCDClippingTab(settings);
                 ImGui.EndTabItem();
@@ -312,9 +312,9 @@ namespace ActionTimelineReborn.Windows
 
             if (ImGui.IsItemHovered())
             {
-                ImGui.SetTooltip(!isTime ? "Please wait for a second." :
-                isLast ? "Are you sure to remove this timeline?"
-                : "Click to remove this timeline.");
+                ImGui.SetTooltip(!isTime ? "请稍等一秒。" :
+                isLast ? "确定要删除这个时间轴吗？"
+                : "点击删除这个时间轴。");
             }
 
             if (isLast) ImGui.PopStyleColor();
@@ -323,183 +323,183 @@ namespace ActionTimelineReborn.Windows
 
         private bool DrawGeneralTab(DrawingSettings settings)
         {
-            ImGui.InputText("Name", ref settings.Name, 32);
+            ImGui.InputText("名称##Name", ref settings.Name, 32);
             var result = Plugin.Settings.TimelineSettings.Count > 1 && RemoveValue(settings.Name);
 
-            ImGui.Checkbox("Enable", ref settings.Enable);
-            ImGui.Checkbox("Is Rotation", ref settings.IsRotation);
-            ImGui.Checkbox("Is Horizonal", ref settings.IsHorizonal);
-            ImGui.Checkbox("Is Reverse", ref settings.IsReverse);
+            ImGui.Checkbox("启用##Enable", ref settings.Enable);
+            ImGui.Checkbox("循环轴模式##Is Rotation", ref settings.IsRotation);
+            ImGui.Checkbox("横向显示##Is Horizonal", ref settings.IsHorizonal);
+            ImGui.Checkbox("反向显示##Is Reverse", ref settings.IsReverse);
 
             ImGui.NewLine();
 
-            ImGui.Checkbox("Locked", ref settings.Locked);
-            ImGui.ColorEdit4("Locked Color", ref settings.LockedBackgroundColor, ImGuiColorEditFlags.NoInputs);
-            ImGui.ColorEdit4("Unlocked Color", ref settings.UnlockedBackgroundColor, ImGuiColorEditFlags.NoInputs);
+            ImGui.Checkbox("锁定##Locked", ref settings.Locked);
+            ImGui.ColorEdit4("锁定背景色##Locked Color", ref settings.LockedBackgroundColor, ImGuiColorEditFlags.NoInputs);
+            ImGui.ColorEdit4("未锁定背景色##Unlocked Color", ref settings.UnlockedBackgroundColor, ImGuiColorEditFlags.NoInputs);
 
             ImGui.NewLine();
 
-            ImGui.DragFloat("Size per second", ref settings.SizePerSecond, 0.3f, 20, 150);
-            DrawHelper.SetTooltip("This is the width of every second drawn on the window.");
+            ImGui.DragFloat("每秒长度##Size per second", ref settings.SizePerSecond, 0.3f, 20, 150);
+            DrawHelper.SetTooltip("时间轴中每秒占用的像素长度。");
 
-            ImGui.DragInt("Offset Time (seconds)", ref settings.TimeOffsetSetting, 0.1f, 0, 1000);
-            DrawHelper.SetTooltip(settings.IsRotation ? "The Offset time of rotation."
-                : "This is the advanced time about action using");
+            ImGui.DragInt("时间偏移（秒）##Offset Time (seconds)", ref settings.TimeOffsetSetting, 0.1f, 0, 1000);
+            DrawHelper.SetTooltip(settings.IsRotation ? "循环轴模式的时间偏移。"
+                : "技能使用点相对时间轴起始线的提前时间。");
 
-            ImGui.DragFloat("Drawing Center offset", ref settings.CenterOffset, 0.3f, -500, 500);
+            ImGui.DragFloat("绘制中心偏移##Drawing Center offset", ref settings.CenterOffset, 0.3f, -500, 500);
 
             return result;
         }
 
         private static void DrawIconsTab(DrawingSettings settings)
         {
-            ImGui.DragInt("Icon Size", ref settings.GCDIconSize);
+            ImGui.DragInt("GCD 图标大小##Icon Size", ref settings.GCDIconSize);
 
             ImGui.NewLine();
-            ImGui.Checkbox("Show Off GCD", ref settings.ShowOGCD);
+            ImGui.Checkbox("显示能力技 / oGCD##Show Off GCD", ref settings.ShowOGCD);
 
             if (settings.ShowOGCD)
             {
                 ImGui.Indent();
-                ImGui.DragInt("Off GCD Icon Size", ref settings.OGCDIconSize, 0.2f, 1, 100);
-                ImGui.DragFloat("Iff GCD Vertical Offset", ref settings.OGCDOffset, 0.01f, 0, 1);
+                ImGui.DragInt("oGCD 图标大小##Off GCD Icon Size", ref settings.OGCDIconSize, 0.2f, 1, 100);
+                ImGui.DragFloat("oGCD 垂直偏移##Iff GCD Vertical Offset", ref settings.OGCDOffset, 0.01f, 0, 1);
                 ImGui.Unindent();
             }
 
             ImGui.NewLine();
-            ImGui.Checkbox("Show Auto Attacks", ref settings.ShowAutoAttack);
+            ImGui.Checkbox("显示自动攻击##Show Auto Attacks", ref settings.ShowAutoAttack);
 
             if (settings.ShowAutoAttack)
             {
                 ImGui.Indent();
-                ImGui.DragInt("Auto Attack Icon Size", ref settings.AutoAttackIconSize, 0.2f, 1, 100);
-                ImGui.DragFloat("Auto Attack Vertical Offset", ref settings.AutoAttackOffset, 0.01f, 0, 1);
+                ImGui.DragInt("自动攻击图标大小##Auto Attack Icon Size", ref settings.AutoAttackIconSize, 0.2f, 1, 100);
+                ImGui.DragFloat("自动攻击垂直偏移##Auto Attack Vertical Offset", ref settings.AutoAttackOffset, 0.01f, 0, 1);
                 ImGui.Unindent();
             }
 
             ImGui.NewLine();
-            ImGui.Checkbox("Show Status Gain Lose", ref settings.ShowStatus);
+            ImGui.Checkbox("显示状态获得/失去##Show Status Gain Lose", ref settings.ShowStatus);
 
             if (settings.ShowStatus)
             {
                 ImGui.Indent();
-                ImGui.DragInt("Status Icon Size", ref settings.StatusIconSize, 0.2f, 1, 100);
-                ImGui.DragFloat("Status Icon Alpha", ref settings.StatusIconAlpha, 0.01f, 0, 1);
-                ImGui.ColorEdit4("Status Gain Color", ref settings.StatusGainColor, ImGuiColorEditFlags.NoInputs);
-                ImGui.ColorEdit4("Status Lose Color", ref settings.StatusLoseColor, ImGuiColorEditFlags.NoInputs);
-                ImGui.DragFloat("Status Offset", ref settings.StatusOffset, 0.01f, 0, 1);
+                ImGui.DragInt("状态图标大小##Status Icon Size", ref settings.StatusIconSize, 0.2f, 1, 100);
+                ImGui.DragFloat("状态图标透明度##Status Icon Alpha", ref settings.StatusIconAlpha, 0.01f, 0, 1);
+                ImGui.ColorEdit4("获得状态颜色##Status Gain Color", ref settings.StatusGainColor, ImGuiColorEditFlags.NoInputs);
+                ImGui.ColorEdit4("失去状态颜色##Status Lose Color", ref settings.StatusLoseColor, ImGuiColorEditFlags.NoInputs);
+                ImGui.DragFloat("状态图标偏移##Status Offset", ref settings.StatusOffset, 0.01f, 0, 1);
                 ImGui.Unindent();
             }
 
             ImGui.NewLine();
-            ImGui.Checkbox("Show Damage Type", ref settings.ShowDamageType);
+            ImGui.Checkbox("显示暴击/直击类型##Show Damage Type", ref settings.ShowDamageType);
             if (settings.ShowDamageType)
             {
                 ImGui.Indent();
-                ImGui.ColorEdit4("Direct Color", ref settings.DirectColor, ImGuiColorEditFlags.NoInputs);
-                ImGui.ColorEdit4("Critical Color", ref settings.CriticalColor, ImGuiColorEditFlags.NoInputs);
-                ImGui.ColorEdit4("Critical Direct Color", ref settings.CriticalDirectColor, ImGuiColorEditFlags.NoInputs);
+                ImGui.ColorEdit4("直击颜色##Direct Color", ref settings.DirectColor, ImGuiColorEditFlags.NoInputs);
+                ImGui.ColorEdit4("暴击颜色##Critical Color", ref settings.CriticalColor, ImGuiColorEditFlags.NoInputs);
+                ImGui.ColorEdit4("暴击直击颜色##Critical Direct Color", ref settings.CriticalDirectColor, ImGuiColorEditFlags.NoInputs);
                 ImGui.Unindent();
             }
         }
 
         private static void DrawBarTab(DrawingSettings settings)
         {
-            ImGui.ColorEdit4("Bar Background Color", ref settings.BackgroundColor, ImGuiColorEditFlags.NoInputs);
-            ImGui.ColorEdit4("GCD Border Color", ref settings.GCDBorderColor, ImGuiColorEditFlags.NoInputs);
-            ImGui.DragFloat("GCD Border Thickness", ref settings.GCDThickness, 0.01f, 0, 10);
-            ImGui.DragFloat("GCD Border Round", ref settings.GCDRound, 0.01f, 0, 10);
-            ImGui.DragFloatRange2("GCD Bar Height", ref settings.GCDHeightLow, ref settings.GCDHeightHigh, 0.01f, 0, 1);
+            ImGui.ColorEdit4("条形背景色##Bar Background Color", ref settings.BackgroundColor, ImGuiColorEditFlags.NoInputs);
+            ImGui.ColorEdit4("GCD 边框颜色##GCD Border Color", ref settings.GCDBorderColor, ImGuiColorEditFlags.NoInputs);
+            ImGui.DragFloat("GCD 边框粗细##GCD Border Thickness", ref settings.GCDThickness, 0.01f, 0, 10);
+            ImGui.DragFloat("GCD 边框圆角##GCD Border Round", ref settings.GCDRound, 0.01f, 0, 10);
+            ImGui.DragFloatRange2("GCD 条高度##GCD Bar Height", ref settings.GCDHeightLow, ref settings.GCDHeightHigh, 0.01f, 0, 1);
             ImGui.NewLine();
 
-            ImGui.ColorEdit4("Cast In Progress Color", ref settings.CastInProgressColor, ImGuiColorEditFlags.NoInputs);
-            ImGui.ColorEdit4("Cast Finished Color", ref settings.CastFinishedColor, ImGuiColorEditFlags.NoInputs);
-            ImGui.ColorEdit4("Cast Canceled Color", ref settings.CastCanceledColor, ImGuiColorEditFlags.NoInputs);
+            ImGui.ColorEdit4("施法中颜色##Cast In Progress Color", ref settings.CastInProgressColor, ImGuiColorEditFlags.NoInputs);
+            ImGui.ColorEdit4("施法完成颜色##Cast Finished Color", ref settings.CastFinishedColor, ImGuiColorEditFlags.NoInputs);
+            ImGui.ColorEdit4("施法取消颜色##Cast Canceled Color", ref settings.CastCanceledColor, ImGuiColorEditFlags.NoInputs);
 
             ImGui.NewLine();
 
-            ImGui.Checkbox("Show Animation Lock Time", ref settings.ShowAnimationLock);
+            ImGui.Checkbox("显示动画锁时间##Show Animation Lock Time", ref settings.ShowAnimationLock);
 
             if (settings.ShowAutoAttack)
             {
                 ImGui.Indent();
-                ImGui.ColorEdit4("Animation Lock Color", ref settings.AnimationLockColor, ImGuiColorEditFlags.NoInputs);
+                ImGui.ColorEdit4("动画锁颜色##Animation Lock Color", ref settings.AnimationLockColor, ImGuiColorEditFlags.NoInputs);
                 ImGui.Unindent();
             }
 
             ImGui.NewLine();
 
-            ImGui.Checkbox("Show Status Line", ref settings.ShowStatusLine);
+            ImGui.Checkbox("显示状态持续条##Show Status Line", ref settings.ShowStatusLine);
 
             if (settings.ShowAutoAttack)
             {
                 ImGui.Indent();
-                ImGui.DragFloat("Status Line Height", ref settings.StatusLineSize, 0.2f, 1, 100);
+                ImGui.DragFloat("状态持续条高度##Status Line Height", ref settings.StatusLineSize, 0.2f, 1, 100);
                 ImGui.Unindent();
             }
         }
 
         private static void DrawGridTab(DrawingSettings settings)
         {
-            ImGui.Checkbox("Enabled", ref settings.ShowGrid);
+            ImGui.Checkbox("启用##Grid_Enabled", ref settings.ShowGrid);
 
-            ImGui.DragFloat("Start Line Width", ref settings.GridStartLineWidth, 0.1f, 0.1f, 10);
-            ImGui.ColorEdit4("Start Line Color", ref settings.GridStartLineColor, ImGuiColorEditFlags.NoInputs);
+            ImGui.DragFloat("起始线宽度##Start Line Width", ref settings.GridStartLineWidth, 0.1f, 0.1f, 10);
+            ImGui.ColorEdit4("起始线颜色##Start Line Color", ref settings.GridStartLineColor, ImGuiColorEditFlags.NoInputs);
 
             if (!settings.ShowGrid) { return; }
             ImGui.NewLine();
 
-            ImGui.Checkbox("Show Center Line", ref settings.ShowGridCenterLine);
+            ImGui.Checkbox("显示中心线##Show Center Line", ref settings.ShowGridCenterLine);
             if (settings.ShowGridCenterLine)
             {
                 ImGui.Indent();
-                ImGui.DragFloat("Center Line Width", ref settings.GridCenterLineWidth, 0.1f, 0.1f, 10);
-                ImGui.ColorEdit4("Center Line Color", ref settings.GridCenterLineColor, ImGuiColorEditFlags.NoInputs);
+                ImGui.DragFloat("中心线宽度##Center Line Width", ref settings.GridCenterLineWidth, 0.1f, 0.1f, 10);
+                ImGui.ColorEdit4("中心线颜色##Center Line Color", ref settings.GridCenterLineColor, ImGuiColorEditFlags.NoInputs);
                 ImGui.Unindent();
             }
 
             ImGui.NewLine();
 
-            ImGui.DragFloat("Line Width", ref settings.GridLineWidth, 0.1f, 0.1f, 10);
-            ImGui.ColorEdit4("Line Color", ref settings.GridLineColor, ImGuiColorEditFlags.NoInputs);
+            ImGui.DragFloat("网格线宽度##Line Width", ref settings.GridLineWidth, 0.1f, 0.1f, 10);
+            ImGui.ColorEdit4("网格线颜色##Line Color", ref settings.GridLineColor, ImGuiColorEditFlags.NoInputs);
 
             ImGui.NewLine();
-            ImGui.Checkbox("Divide By Seconds", ref settings.GridDivideBySeconds);
+            ImGui.Checkbox("按秒划分##Divide By Seconds", ref settings.GridDivideBySeconds);
 
             if (!settings.GridDivideBySeconds) { return; }
 
-            ImGui.Checkbox("Show Text", ref settings.GridShowSecondsText);
+            ImGui.Checkbox("显示秒数文字##Show Text", ref settings.GridShowSecondsText);
 
             ImGui.NewLine();
-            ImGui.Checkbox("Sub-Divide By Seconds", ref settings.GridSubdivideSeconds);
+            ImGui.Checkbox("秒内细分##Sub-Divide By Seconds", ref settings.GridSubdivideSeconds);
 
             if (!settings.GridSubdivideSeconds) { return; }
 
-            ImGui.DragInt("Sub-Division Count", ref settings.GridSubdivisionCount, 0.2f, 2, 8);
-            ImGui.DragFloat("Sub-Division Line Width", ref settings.GridSubdivisionLineWidth, 0.5f, 1, 5);
-            ImGui.ColorEdit4("Sub-Division Line Color", ref settings.GridSubdivisionLineColor, ImGuiColorEditFlags.NoInputs);
+            ImGui.DragInt("细分数量##Sub-Division Count", ref settings.GridSubdivisionCount, 0.2f, 2, 8);
+            ImGui.DragFloat("细分线宽度##Sub-Division Line Width", ref settings.GridSubdivisionLineWidth, 0.5f, 1, 5);
+            ImGui.ColorEdit4("细分线颜色##Sub-Division Line Color", ref settings.GridSubdivisionLineColor, ImGuiColorEditFlags.NoInputs);
         }
 
         private static void DrawGCDClippingTab(DrawingSettings settings)
         {
-            ImGui.Checkbox("Enabled", ref settings.ShowGCDClippingSetting);
-            DrawHelper.SetTooltip("This only shown when timeline is not rotation.");
+            ImGui.Checkbox("启用##GCDClipping_Enabled", ref settings.ShowGCDClippingSetting);
+            DrawHelper.SetTooltip("仅在非循环轴模式的时间轴中显示。");
 
             if (!settings.ShowGCDClipping) return;
 
             int clippingThreshold = (int)(settings.GCDClippingThreshold * 1000f);
-            if (ImGui.DragInt("Threshold (ms)", ref clippingThreshold, 0.1f, 0, 1000))
+            if (ImGui.DragInt("阈值（毫秒）##Threshold (ms)", ref clippingThreshold, 0.1f, 0, 1000))
             {
                 settings.GCDClippingThreshold = clippingThreshold / 1000f;
             }
-            DrawHelper.SetTooltip("This can be used filter out \"false positives\" due to latency or other factors. Any GCD clipping detected that is shorter than this value will be ignored.\nIt is strongly recommended that you test out different values and find out what works best for your setup.");
+            DrawHelper.SetTooltip("用于过滤由延迟或其他因素造成的“误报”。短于该数值的 GCD 卡顿会被忽略。\n强烈建议根据自己的网络和设备环境测试合适的数值。");
 
-            ImGui.DragInt("Max Time (seconds)", ref settings.GCDClippingMaxTime, 0.1f, 3, 60);
-            DrawHelper.SetTooltip("Any GCD clip longer than this will be capped");
+            ImGui.DragInt("最大时间（秒）##Max Time (seconds)", ref settings.GCDClippingMaxTime, 0.1f, 3, 60);
+            DrawHelper.SetTooltip("长于该数值的 GCD 卡顿会被忽略。");
 
-            ImGui.ColorEdit4("Color", ref settings.GCDClippingColor, ImGuiColorEditFlags.NoInputs);
+            ImGui.ColorEdit4("颜色##Color", ref settings.GCDClippingColor, ImGuiColorEditFlags.NoInputs);
 
-            ImGui.ColorEdit4("Text Color", ref settings.GCDClippingTextColor, ImGuiColorEditFlags.NoInputs);
+            ImGui.ColorEdit4("文字颜色##Text Color", ref settings.GCDClippingTextColor, ImGuiColorEditFlags.NoInputs);
         }
         #endregion
     }

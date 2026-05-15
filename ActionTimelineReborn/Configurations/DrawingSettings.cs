@@ -5,7 +5,7 @@ namespace ActionTimelineReborn.Configurations;
 
 public class DrawingSettings
 {
-    public string Name = "Major";
+    public string Name = "主要";
 
     public bool Enable = true;
     public bool IsRotation = false;

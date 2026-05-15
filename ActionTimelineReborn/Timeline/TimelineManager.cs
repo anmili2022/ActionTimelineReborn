@@ -31,7 +31,7 @@ public class TimelineManager : IDisposable
         }
         catch (Exception e)
         {
-            Svc.Log.Error("Error initiating hooks: " + e.Message);
+            Svc.Log.Error("初始化 Hook 时出错：" + e.Message);
         }
     }
 
@@ -320,7 +320,7 @@ public class TimelineManager : IDisposable
                 var time = (int)(now - lastGcd.EndTime).TotalMilliseconds;
                 if(time >= Plugin.Settings.PrintClippingMin &&  time <= Plugin.Settings.PrintClippingMax)
                 {
-                    Svc.Chat.Print($"Clipping: {time}ms ({lastGcd.Name} - {set.Name})");
+                    Svc.Chat.Print($"GCD 卡顿：{time}毫秒（{lastGcd.Name} - {set.Name}）");
                 }
             }
         }
@@ -472,7 +472,7 @@ public class TimelineManager : IDisposable
         }
         catch (Exception ex)
         {
-            Svc.Log.Error($"Error in OnActorControl: {ex.Message}");
+            Svc.Log.Error($"OnActorControl 中出错：{ex.Message}");
         }
     }
 
@@ -502,7 +502,7 @@ public class TimelineManager : IDisposable
         }
         catch(Exception ex)
         {
-            Svc.Log.Warning(ex, "Something wrong with OnCast1");
+            Svc.Log.Warning(ex, "OnCast 中出现异常");
         }
     }
 }

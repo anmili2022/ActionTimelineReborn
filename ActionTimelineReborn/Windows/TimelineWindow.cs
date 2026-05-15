@@ -33,7 +33,7 @@ internal static class TimelineWindow
         ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(0, 0));
         ImGui.PushStyleVar(ImGuiStyleVar.WindowBorderSize, 0);
 
-        if (ImGui.Begin($"Timeline: {index}", flag))
+        if (ImGui.Begin($"时间轴##Timeline: {index}", flag))
         {
             DrawContent(setting);
             ImGui.End();
@@ -92,7 +92,7 @@ internal static class TimelineWindow
                        , gcdClippingColor);
                     ImGui.GetWindowDrawList().AddText(drawingLeftTop, 
                         ImGui.ColorConvertFloat4ToU32(setting.GCDClippingTextColor),
-                        $"{(int)span.TotalMilliseconds}ms");
+                        $"{(int)span.TotalMilliseconds}毫秒");
                 }
 
                 last = item.EndTime;
@@ -177,7 +177,7 @@ internal static class TimelineWindow
 
                 if (setting.GridShowSecondsText)
                 {
-                    drawList.AddText(startPt, lineColor, $" {time}s");
+                    drawList.AddText(startPt, lineColor, $" {time}秒");
                 }
 
                 startPt -= setting.TimeDirectionPerSecond;

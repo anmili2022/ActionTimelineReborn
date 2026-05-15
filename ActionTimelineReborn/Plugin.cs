@@ -2,17 +2,13 @@ using ActionTimelineReborn.Configurations;
 using ActionTimelineReborn.Helpers;
 using ActionTimelineReborn.Timeline;
 using ActionTimelineReborn.Windows;
-using Dalamud.Bindings.ImGui;
 using Dalamud.Game.ClientState.Conditions;
-using Dalamud.Interface;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin;
 using ECommons;
 using ECommons.Commands;
 using ECommons.DalamudServices;
 using ECommons.GameHelpers;
-using System.Diagnostics;
-using static Dalamud.Interface.Windowing.Window;
 
 namespace ActionTimelineReborn;
 
@@ -73,52 +69,71 @@ public class Plugin : IDalamudPlugin
 
     public Plugin(IDalamudPluginInterface pluginInterface)
     {
-        ECommonsMain.Init(pluginInterface, this);
-
-        Svc.PluginInterface.UiBuilder.Draw += Draw;
-        Svc.PluginInterface.UiBuilder.OpenConfigUi += OpenConfigUi;
-
-        TimelineManager.Initialize();
-        DrawHelper.Init();
+        var eCommonsInitialized = false;
+        var drawRegistered = false;
+        var openConfigRegistered = false;
+        var openMainRegistered = false;
+        var timelineInitialized = false;
 
         try
         {
-            Settings = pluginInterface.GetPluginConfig() as Settings ?? new Settings();
+            ECommonsMain.Init(pluginInterface, this);
+            eCommonsInitialized = true;
+
+            Svc.PluginInterface.UiBuilder.Draw += Draw;
+            drawRegistered = true;
+
+            Svc.PluginInterface.UiBuilder.OpenConfigUi += OpenConfigUi;
+            openConfigRegistered = true;
+
+            Svc.PluginInterface.UiBuilder.OpenMainUi += OpenConfigUi;
+            openMainRegistered = true;
+
+            TimelineManager.Initialize();
+            timelineInitialized = true;
+
+            DrawHelper.Init();
+
+            try
+            {
+                Settings = pluginInterface.GetPluginConfig() as Settings ?? new Settings();
+            }
+            catch
+            {
+                Settings = new Settings();
+            }
+
+            CreateWindows();
         }
         catch
         {
-            Settings = new Settings();
-        }
+            if (timelineInitialized)
+            {
+                TimelineManager.Instance?.Dispose();
+            }
 
-        CreateWindows();
-        _settingsWindow.TitleBarButtons.Add(new TitleBarButton()
-        {
-            Icon = FontAwesomeIcon.Heart,
-            ShowTooltip = () =>
+            if (drawRegistered)
             {
-                ImGui.BeginTooltip();
-                ImGui.Text("Support the developer on Ko-fi");
-                ImGui.EndTooltip();
-            },
-            Priority = 2,
-            Click = _ =>
+                Svc.PluginInterface.UiBuilder.Draw -= Draw;
+            }
+
+            if (openConfigRegistered)
             {
-                try
-                {
-                    Process.Start(new ProcessStartInfo()
-                    {
-                        FileName = "https://ko-fi.com/ltscombatreborn",
-                        UseShellExecute = true,
-                        Verb = string.Empty
-                    });
-                }
-                catch
-                {
-                    // ignored
-                }
-            },
-            AvailableClickthrough = true
-        });
+                Svc.PluginInterface.UiBuilder.OpenConfigUi -= OpenConfigUi;
+            }
+
+            if (openMainRegistered)
+            {
+                Svc.PluginInterface.UiBuilder.OpenMainUi -= OpenConfigUi;
+            }
+
+            if (eCommonsInitialized)
+            {
+                ECommonsMain.Dispose();
+            }
+
+            throw;
+        }
     }
 
     public void Dispose()
@@ -127,18 +142,22 @@ public class Plugin : IDalamudPlugin
         GC.SuppressFinalize(this);
     }
 
-    [Cmd("/atl", "Opens the ActionTimelineReborn configuration window.")]
-    [SubCmd("lock", "Lock all windows")]
-    [SubCmd("unlock", "Unlock all windows")]
+    [Cmd("/atl", "打开 ActionTimelineReborn 设置窗口；使用 /atl <时间轴名称> 显示或隐藏指定时间轴。")]
+    [SubCmd("lock", "锁定所有时间轴窗口")]
+    [SubCmd("unlock", "解锁所有时间轴窗口")]
     private static void PluginCommand(string command, string arguments)
     {
-        var sub = arguments.Split(' ').FirstOrDefault();
+        var trimmedArguments = arguments.Trim();
+        var timelineName = trimmedArguments.Trim('"');
+        var sub = trimmedArguments.Split(' ').FirstOrDefault();
         if(string.Equals("unlock", sub, StringComparison.OrdinalIgnoreCase))
         {
             foreach (var setting in Settings.TimelineSettings)
             {
                 setting.Locked = false;
             }
+            Settings.Save();
+            Svc.Chat.Print("[ActionTimelineReborn] 已解锁所有时间轴窗口。");
         }
         else if (string.Equals("lock", sub, StringComparison.OrdinalIgnoreCase))
         {
@@ -146,6 +165,12 @@ public class Plugin : IDalamudPlugin
             {
                 setting.Locked = true;
             }
+            Settings.Save();
+            Svc.Chat.Print("[ActionTimelineReborn] 已锁定所有时间轴窗口。");
+        }
+        else if (!string.IsNullOrWhiteSpace(trimmedArguments))
+        {
+            ToggleTimeline(timelineName);
         }
         else
         {
@@ -153,12 +178,47 @@ public class Plugin : IDalamudPlugin
         }
     }
 
+    private static void ToggleTimeline(string timelineName)
+    {
+        List<DrawingSettings> matches = [];
+        foreach (var setting in Settings.TimelineSettings)
+        {
+            if (string.Equals(setting.Name, timelineName, StringComparison.OrdinalIgnoreCase))
+            {
+                matches.Add(setting);
+            }
+        }
+
+        if (matches.Count == 0)
+        {
+            Svc.Chat.Print($"[ActionTimelineReborn] 未找到名为“{timelineName}”的时间轴。");
+            return;
+        }
+
+        var enabled = !matches[0].Enable;
+        foreach (var setting in matches)
+        {
+            setting.Enable = enabled;
+        }
+
+        Settings.Save();
+        Svc.Chat.Print($"[ActionTimelineReborn] 已{(enabled ? "显示" : "隐藏")}时间轴“{timelineName}”。");
+    }
+
     private void CreateWindows()
     {
         _settingsWindow = new SettingsWindow();
 
         _windowSystem = new WindowSystem("ActionTimelineReborn_Windows");
-        _windowSystem.AddWindow(_settingsWindow);
+        AddWindow(_windowSystem, _settingsWindow);
+    }
+
+    private static void AddWindow(WindowSystem windowSystem, SettingsWindow settingsWindow)
+    {
+        var addWindowMethod = typeof(WindowSystem).GetMethods()
+            .First(method => method.Name == "AddWindow" && method.GetParameters().Length == 1);
+
+        addWindowMethod.Invoke(windowSystem, [settingsWindow]);
     }
 
     private void Draw()
@@ -225,5 +285,6 @@ public class Plugin : IDalamudPlugin
 
         Svc.PluginInterface.UiBuilder.Draw -= Draw;
         Svc.PluginInterface.UiBuilder.OpenConfigUi -= OpenConfigUi;
+        Svc.PluginInterface.UiBuilder.OpenMainUi -= OpenConfigUi;
     }
 }
