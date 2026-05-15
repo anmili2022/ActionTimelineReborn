@@ -8,6 +8,8 @@
 
 A Final Fantasy XIV Dalamud Plugin that shows a timeline with the actions you use in real-time.
 
+维护交接、开发环境、常用命令和快速发布流程见：[HANDOFF.md](./HANDOFF.md)。
+
 ![example](/Images/example.gif)
 
 Action Timeline Reborn is a community-driven fork of a fork of the original Action Timeline plugin for Final Fantasy XIV. It aims to enhance your gameplay by providing a real-time action timeline useful for seeing GCD delay, oGCD weaving, and GCD clipping.
