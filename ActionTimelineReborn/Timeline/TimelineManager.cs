@@ -102,8 +102,20 @@ public class TimelineManager : IDisposable
     
     // Cache for action data to reduce Excel sheet lookups
     private static readonly Dictionary<uint, (string name, ushort icon, ActionCate category, byte cooldownGroup, byte additionalCooldownGroup)> _actionCache = [];
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<uint, (string name, ushort icon)> _actionDisplayCache = [];
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, ushort> _actionIconByNameCache = new(StringComparer.Ordinal);
     private static readonly Dictionary<uint, (string name, ushort icon, uint maxStacks)> _statusCache = [];
     private static readonly Dictionary<uint, (string name, ushort icon, float castTime)> _itemCache = [];
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, StatusPropertyCache> _statusPropertyCache = [];
+    private const ushort DefaultActionIcon = 405;
+
+    private sealed class StatusPropertyCache
+    {
+        public System.Reflection.PropertyInfo? StatusId { get; init; }
+        public System.Reflection.PropertyInfo? Param { get; init; }
+        public System.Reflection.PropertyInfo? SourceId { get; init; }
+        public System.Reflection.PropertyInfo? RemainingTime { get; init; }
+    }
 
     public DateTime EndTime { get; private set; } = DateTime.Now;
     private static readonly int kMaxItemCount = 2048;
@@ -209,6 +221,136 @@ public class TimelineManager : IDisposable
             : TimelineItemType.GCD;
     }
 
+    private static (string name, ushort icon) GetActionDisplay(ActionEffectSet set)
+    {
+        var name = set.Name;
+        var icon = set.IconId;
+
+        if (set.Header.ActionType == ActionType.Action
+            && TryGetActionDisplayFromSheet(set.Header.ActionID, out var sheetName, out var sheetIcon))
+        {
+            if (!string.IsNullOrWhiteSpace(sheetName))
+            {
+                name = sheetName;
+            }
+
+            if (IsUsableActionIcon(sheetIcon))
+            {
+                icon = sheetIcon;
+            }
+        }
+
+        if (!IsUsableActionIcon(icon) && TryFindBetterActionIconByName(name, out var betterIcon))
+        {
+            icon = betterIcon;
+        }
+
+        return (name, icon);
+    }
+
+    private static bool TryGetActionDisplayFromSheet(uint actionId, out string name, out ushort icon)
+    {
+        if (_actionDisplayCache.TryGetValue(actionId, out var cached))
+        {
+            name = cached.name;
+            icon = cached.icon;
+            return true;
+        }
+
+        if (Svc.Data.GetExcelSheet<Action>()?.TryGetRow(actionId, out var action) != true)
+        {
+            name = string.Empty;
+            icon = 0;
+            return false;
+        }
+
+        name = action.Name.ToString();
+        icon = action.Icon;
+
+        if (!IsUsableActionIcon(icon) && TryFindBetterActionIconByName(name, out var betterIcon))
+        {
+            icon = betterIcon;
+        }
+
+        _actionDisplayCache[actionId] = (name, icon);
+        return true;
+    }
+
+    private static bool TryFindBetterActionIconByName(string? name, out ushort icon)
+    {
+        icon = 0;
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return false;
+        }
+
+        if (_actionIconByNameCache.TryGetValue(name, out icon))
+        {
+            return IsUsableActionIcon(icon);
+        }
+
+        var sheet = Svc.Data.GetExcelSheet<Action>();
+        if (sheet == null)
+        {
+            _actionIconByNameCache[name] = 0;
+            return false;
+        }
+
+        var bestScore = int.MinValue;
+        var bestIcon = (ushort)0;
+
+        foreach (var action in sheet)
+        {
+            if (!string.Equals(action.Name.ToString(), name, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (!IsUsableActionIcon(action.Icon))
+            {
+                continue;
+            }
+
+            var category = action.ActionCategory.Value.RowId;
+            var score = 0;
+
+            if (action.IsPlayerAction)
+            {
+                score += 1000;
+            }
+
+            if (category is 2 or 3 or 4)
+            {
+                score += 100;
+            }
+
+            if (action.CooldownGroup == GCDCooldownGroup || action.AdditionalCooldownGroup == GCDCooldownGroup)
+            {
+                score += 20;
+            }
+
+            if (action.RowId < 30000)
+            {
+                score += 10;
+            }
+
+            if (score > bestScore)
+            {
+                bestScore = score;
+                bestIcon = action.Icon;
+            }
+        }
+
+        _actionIconByNameCache[name] = bestIcon;
+        icon = bestIcon;
+        return IsUsableActionIcon(icon);
+    }
+
+    private static bool IsUsableActionIcon(ushort icon)
+    {
+        return icon != 0 && icon != DefaultActionIcon;
+    }
+
     private void CancelCasting()
     {
         if (_lastItem == null || _lastItem.CastingTime == 0) return;
@@ -240,12 +382,11 @@ public class TimelineManager : IDisposable
             {
                 // Replace LINQ with manual loop for better performance
                 stack = 0;
-                var statusList = Player.Object.StatusList;
-                for (int i = 0; i < statusList.Length; i++)
+                foreach (var statusObject in EnumerateStatuses(Player.Object.StatusList))
                 {
-                    if (statusList[i] != null && statusList[i]!.StatusId == id)
+                    if (TryGetStatusInfo(statusObject, out var statusId, out var param, out _, out _) && statusId == id)
                     {
-                        stack = (byte)statusList[i]!.Param;
+                        stack = (byte)param;
                         break;
                     }
                 }
@@ -302,6 +443,7 @@ public class TimelineManager : IDisposable
 
         var now = DateTime.Now;
         var type = GetActionType(set.Header.ActionID, set.Header.ActionType);
+        var display = GetActionDisplay(set);
 
         if (Plugin.Settings.PrintClipping && type == TimelineItemType.GCD)
         {
@@ -320,7 +462,7 @@ public class TimelineManager : IDisposable
                 var time = (int)(now - lastGcd.EndTime).TotalMilliseconds;
                 if(time >= Plugin.Settings.PrintClippingMin &&  time <= Plugin.Settings.PrintClippingMax)
                 {
-                    Svc.Chat.Print($"GCD 卡顿：{time}毫秒（{lastGcd.Name} - {set.Name}）");
+                    Svc.Chat.Print($"GCD 卡顿：{time}毫秒（{lastGcd.Name} - {display.name}）");
                 }
             }
         }
@@ -329,8 +471,8 @@ public class TimelineManager : IDisposable
             && _lastItem.State == TimelineItemState.Casting) // Finish the casting.
         {
             _lastItem.AnimationLockTime = set.Header.AnimationLockTime;
-            _lastItem.Name = set.Name;
-            _lastItem.Icon = set.IconId;
+            _lastItem.Name = display.name;
+            _lastItem.Icon = display.icon;
             _lastItem.Damage = damage;
             _lastItem.State = TimelineItemState.Finished;
         }
@@ -342,8 +484,8 @@ public class TimelineManager : IDisposable
                 AnimationLockTime = type == TimelineItemType.AutoAttack ? 0 : set.Header.AnimationLockTime,
                 GCDTime = type == TimelineItemType.GCD ? GCD : 0,
                 Type = type,
-                Name = set.Name,
-                Icon = set.IconId,
+                Name = display.name,
+                Icon = display.icon,
                 Damage = damage,
                 State = TimelineItemState.Finished,
             });
@@ -404,14 +546,13 @@ public class TimelineManager : IDisposable
             var playerGameObjectId = Player.Object.GameObjectId;
             
             // Process player status list
-            var playerStatusList = Player.Object.StatusList;
-            for (int i = 0; i < playerStatusList.Length; i++)
+            foreach (var statusObject in EnumerateStatuses(Player.Object.StatusList))
             {
-                var status = playerStatusList[i];
-                if (status != null && status.SourceId == playerGameObjectId)
+                if (TryGetStatusInfo(statusObject, out var statusId, out _, out var sourceId, out var remainingTime)
+                    && sourceId == playerGameObjectId)
                 {
                     var statusSheet = Svc.Data.GetExcelSheet<Status>();
-                    var statusRow = statusSheet?.GetRow(status.StatusId);
+                    var statusRow = statusSheet?.GetRow(statusId);
                     if (statusRow != null)
                     {
                         var icon = statusRow.Value.Icon;
@@ -419,7 +560,7 @@ public class TimelineManager : IDisposable
                         {
                             if (item.Icon == icon)
                             {
-                                item.TimeDuration = (float)(DateTime.Now - effectItem.StartTime).TotalSeconds + status.RemainingTime;
+                                item.TimeDuration = (float)(DateTime.Now - effectItem.StartTime).TotalSeconds + remainingTime;
                                 break;
                             }
                         }
@@ -430,14 +571,13 @@ public class TimelineManager : IDisposable
             // Process target status list if available
             if (Svc.Objects.SearchById(targetId) is IBattleChara battleChar)
             {
-                var targetStatusList = battleChar.StatusList;
-                for (int i = 0; i < targetStatusList.Length; i++)
+                foreach (var statusObject in EnumerateStatuses(battleChar.StatusList))
                 {
-                    var status = targetStatusList[i];
-                    if (status != null && status.SourceId == playerGameObjectId)
+                    if (TryGetStatusInfo(statusObject, out var statusId, out _, out var sourceId, out var remainingTime)
+                        && sourceId == playerGameObjectId)
                     {
                         var statusSheet = Svc.Data.GetExcelSheet<Status>();
-                        var statusRow = statusSheet?.GetRow(status.StatusId);
+                        var statusRow = statusSheet?.GetRow(statusId);
                         if (statusRow != null)
                         {
                             var icon = statusRow.Value.Icon;
@@ -445,7 +585,7 @@ public class TimelineManager : IDisposable
                             {
                                 if (item.Icon == icon)
                                 {
-                                    item.TimeDuration = (float)(DateTime.Now - effectItem.StartTime).TotalSeconds + status.RemainingTime;
+                                    item.TimeDuration = (float)(DateTime.Now - effectItem.StartTime).TotalSeconds + remainingTime;
                                     break;
                                 }
                             }
@@ -454,6 +594,73 @@ public class TimelineManager : IDisposable
                 }
             }
         });
+    }
+
+    private static IEnumerable<object> EnumerateStatuses(object? statusList)
+    {
+        if (statusList is not System.Collections.IEnumerable enumerable)
+        {
+            yield break;
+        }
+
+        foreach (var status in enumerable)
+        {
+            if (status != null)
+            {
+                yield return status;
+            }
+        }
+    }
+
+    private static bool TryGetStatusInfo(object status, out uint statusId, out ushort param, out ulong sourceId, out float remainingTime)
+    {
+        statusId = 0;
+        param = 0;
+        sourceId = 0;
+        remainingTime = 0;
+
+        var properties = _statusPropertyCache.GetOrAdd(status.GetType(), static type => new StatusPropertyCache
+        {
+            StatusId = type.GetProperty(nameof(statusId), System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.IgnoreCase),
+            Param = type.GetProperty(nameof(param), System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.IgnoreCase),
+            SourceId = type.GetProperty(nameof(sourceId), System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.IgnoreCase),
+            RemainingTime = type.GetProperty(nameof(remainingTime), System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.IgnoreCase),
+        });
+
+        try
+        {
+            if (properties.StatusId?.GetValue(status) is not { } statusIdValue)
+            {
+                return false;
+            }
+
+            statusId = Convert.ToUInt32(statusIdValue);
+            if (statusId == 0)
+            {
+                return false;
+            }
+
+            if (properties.Param?.GetValue(status) is { } paramValue)
+            {
+                param = Convert.ToUInt16(paramValue);
+            }
+
+            if (properties.SourceId?.GetValue(status) is { } sourceIdValue)
+            {
+                sourceId = Convert.ToUInt64(sourceIdValue);
+            }
+
+            if (properties.RemainingTime?.GetValue(status) is { } remainingTimeValue)
+            {
+                remainingTime = Convert.ToSingle(remainingTimeValue);
+            }
+
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private void OnActorControl(uint entityId, uint type, uint buffID, uint direct, uint actionId, uint sourceId, uint arg7, uint arg8, uint arg9, uint arg10, ulong targetId, byte arg12)

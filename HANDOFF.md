@@ -4,7 +4,7 @@
 
 ## 当前维护状态
 
-- 当前发布版本：`7.4.0.1`
+- 当前发布版本：`7.5.0.5`
 - 主分支：`main`
 - 当前远端：`origin https://github.com/anmili2022/ActionTimelineReborn`
 - 插件框架：Dalamud 插件
@@ -394,18 +394,18 @@ is leaking hooks
     gh release create <版本号> output\ActionTimelineReborn.zip --title "<版本号>" --notes "<更新说明>"
     ```
 
-## 当前 7.4.0.1 发布内容
+## 当前 7.5.0.5 发布内容
 
 Release 链接：
 
 ```text
-https://github.com/anmili2022/ActionTimelineReborn/releases/tag/7.4.0.1
+https://github.com/anmili2022/ActionTimelineReborn/releases/tag/7.5.0.5
 ```
 
 下载地址：
 
 ```text
-https://github.com/anmili2022/ActionTimelineReborn/releases/download/7.4.0.1/ActionTimelineReborn.zip
+https://github.com/anmili2022/ActionTimelineReborn/releases/download/7.5.0.5/ActionTimelineReborn.zip
 ```
 
 主要变更：
@@ -418,4 +418,7 @@ https://github.com/anmili2022/ActionTimelineReborn/releases/download/7.4.0.1/Act
 - 对 `WindowSystem.AddWindow` 做运行时兼容处理。
 - 构造失败时清理 hooks，减少泄露。
 - 构建输出目录改为 `output/`。
-
+- 同步上游 `7.5.0.4` 更新并保留汉化。
+- 修复部分技能显示名和图标回退。
+- 兼容状态列表结构变化。
+- 帮助页补充 `/atl <时间轴名称>` 用法。

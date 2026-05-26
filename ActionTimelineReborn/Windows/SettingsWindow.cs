@@ -103,6 +103,8 @@ namespace ActionTimelineReborn.Windows
             if (ImGui.BeginChild("Help Information", new Vector2(0f, -1f), true))
             {
                 CmdManager.DrawHelp();
+                ImGui.Separator();
+                ImGui.TextWrapped("/atl <时间轴名称>：显示或隐藏指定时间轴；名称带空格时可使用引号。");
                 ImGui.EndChild();
             }
         }
