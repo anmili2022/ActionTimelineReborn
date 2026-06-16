@@ -3,7 +3,7 @@
   "Name": "ActionTimeline Reborn",
   "InternalName": "ActionTimelineReborn",
   "RepoUrl": "https://github.com/FFXIV-CombatReborn/ActionTimelineReborn",
-  "Description": "Configurable timeline display of all the actions you use. / 可配置的实时技能时间轴，显示你使用过的所有技能。",
+  "Description": "可配置的实时技能时间轴插件，用于在战斗中记录并显示你使用过的技能、能力、自动攻击、食物和爆发药等动作，帮助观察 GCD 间隔、能力插入和卡顿情况。",
   "ApplicableVersion": "any",
   "Tags": [
     "UI"
@@ -18,7 +18,7 @@
   "LoadPriority": 0,
   "IsTestingExclusive": false,
   "IconUrl": "https://raw.githubusercontent.com/FFXIV-CombatReborn/RebornAssets/main/IconAssets/ATR_Icon.png",
-  "Punchline": "Show your actions in real-time. / 实时显示你的技能时间轴。",
+  "Punchline": "实时显示你的技能时间轴。",
   "ImageUrls":[
      "https://raw.githubusercontent.com/ArchiDog1998/ActionTimelineReborn/main/Images/example.gif"
   ],

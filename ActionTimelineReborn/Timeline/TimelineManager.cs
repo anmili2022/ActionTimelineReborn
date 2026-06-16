@@ -7,6 +7,7 @@ using ECommons.Hooks;
 using ECommons.Hooks.ActionEffectTypes;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using Action = Lumina.Excel.Sheets.Action;
+using Item = Lumina.Excel.Sheets.Item;
 using Status = Lumina.Excel.Sheets.Status;
 
 namespace ActionTimelineReborn.Timeline;
@@ -102,8 +103,9 @@ public class TimelineManager : IDisposable
     
     // Cache for action data to reduce Excel sheet lookups
     private static readonly Dictionary<uint, (string name, ushort icon, ActionCate category, byte cooldownGroup, byte additionalCooldownGroup)> _actionCache = [];
-    private static readonly System.Collections.Concurrent.ConcurrentDictionary<uint, (string name, ushort icon)> _actionDisplayCache = [];
-    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, ushort> _actionIconByNameCache = new(StringComparer.Ordinal);
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<uint, (string name, uint icon)> _actionDisplayCache = [];
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, uint> _actionIconByNameCache = new(StringComparer.Ordinal);
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (string name, uint icon)> _itemDisplayCache = [];
     private static readonly Dictionary<uint, (string name, ushort icon, uint maxStacks)> _statusCache = [];
     private static readonly Dictionary<uint, (string name, ushort icon, float castTime)> _itemCache = [];
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, StatusPropertyCache> _statusPropertyCache = [];
@@ -221,12 +223,25 @@ public class TimelineManager : IDisposable
             : TimelineItemType.GCD;
     }
 
-    private static (string name, ushort icon) GetActionDisplay(ActionEffectSet set)
+    private static (string name, uint icon) GetActionDisplay(ActionEffectSet set)
     {
         var name = set.Name;
-        var icon = set.IconId;
+        var icon = (uint)set.IconId;
 
-        if (set.Header.ActionType == ActionType.Action
+        if (IsItemActionType(set.Header.ActionType)
+            && TryGetItemDisplayFromSheet(set.Header.ActionID, name, out var itemName, out var itemIcon))
+        {
+            if (!string.IsNullOrWhiteSpace(itemName))
+            {
+                name = itemName;
+            }
+
+            if (itemIcon != 0)
+            {
+                icon = itemIcon;
+            }
+        }
+        else if (set.Header.ActionType == ActionType.Action
             && TryGetActionDisplayFromSheet(set.Header.ActionID, out var sheetName, out var sheetIcon))
         {
             if (!string.IsNullOrWhiteSpace(sheetName))
@@ -248,7 +263,81 @@ public class TimelineManager : IDisposable
         return (name, icon);
     }
 
-    private static bool TryGetActionDisplayFromSheet(uint actionId, out string name, out ushort icon)
+    private static bool TryGetItemDisplayFromSheet(uint itemId, string? packetName, out string name, out uint icon)
+    {
+        var rowId = itemId > 1_000_000 ? itemId - 1_000_000 : itemId;
+        var cacheKey = $"{rowId}\0{packetName}";
+
+        if (_itemDisplayCache.TryGetValue(cacheKey, out var cached))
+        {
+            name = cached.name;
+            icon = cached.icon;
+            return true;
+        }
+
+        var sheet = Svc.Data.GetExcelSheet<Item>();
+        if (sheet == null)
+        {
+            name = string.Empty;
+            icon = 0;
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(packetName))
+        {
+            foreach (var item in sheet)
+            {
+                if (item.Icon == 0 || !string.Equals(item.Name.ToString(), packetName, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                if (item.RowId == rowId || item.ItemAction.Value.RowId == rowId)
+                {
+                    name = item.Name.ToString();
+                    icon = item.Icon;
+                    _itemDisplayCache[cacheKey] = (name, icon);
+                    return true;
+                }
+            }
+        }
+
+        Item? bestItemActionMatch = null;
+        foreach (var item in sheet)
+        {
+            if (item.Icon == 0 || item.ItemAction.Value.RowId != rowId)
+            {
+                continue;
+            }
+
+            if (bestItemActionMatch == null || item.RowId > bestItemActionMatch.Value.RowId)
+            {
+                bestItemActionMatch = item;
+            }
+        }
+
+        if (bestItemActionMatch is { } itemActionMatch)
+        {
+            name = itemActionMatch.Name.ToString();
+            icon = itemActionMatch.Icon;
+            _itemDisplayCache[cacheKey] = (name, icon);
+            return true;
+        }
+
+        if (sheet.TryGetRow(rowId, out var directItem))
+        {
+            name = directItem.Name.ToString();
+            icon = directItem.Icon;
+            _itemDisplayCache[cacheKey] = (name, icon);
+            return true;
+        }
+
+        name = string.Empty;
+        icon = 0;
+        return true;
+    }
+
+    private static bool TryGetActionDisplayFromSheet(uint actionId, out string name, out uint icon)
     {
         if (_actionDisplayCache.TryGetValue(actionId, out var cached))
         {
@@ -276,7 +365,7 @@ public class TimelineManager : IDisposable
         return true;
     }
 
-    private static bool TryFindBetterActionIconByName(string? name, out ushort icon)
+    private static bool TryFindBetterActionIconByName(string? name, out uint icon)
     {
         icon = 0;
         if (string.IsNullOrWhiteSpace(name))
@@ -297,7 +386,7 @@ public class TimelineManager : IDisposable
         }
 
         var bestScore = int.MinValue;
-        var bestIcon = (ushort)0;
+        var bestIcon = 0u;
 
         foreach (var action in sheet)
         {
@@ -346,9 +435,14 @@ public class TimelineManager : IDisposable
         return IsUsableActionIcon(icon);
     }
 
-    private static bool IsUsableActionIcon(ushort icon)
+    private static bool IsUsableActionIcon(uint icon)
     {
         return icon != 0 && icon != DefaultActionIcon;
+    }
+
+    private static bool IsItemActionType(ActionType actionType)
+    {
+        return actionType == ActionType.Item || (uint)actionType == 65538;
     }
 
     private void CancelCasting()
@@ -406,12 +500,14 @@ public class TimelineManager : IDisposable
 
         DamageType damage = DamageType.None;
         SortedSet<(uint, string?)> statusGain = [], statusLose = [];
+        var isItem = IsItemActionType(set.Header.ActionType);
 
         for (int i = 0; i < set.Header.TargetCount; i++)
         {
             var effect = set.TargetEffects[i];
             var recordTarget = Plugin.Settings.RecordTargetStatus 
-                || effect.TargetID == Player.Object?.GameObjectId;
+                || effect.TargetID == Player.Object?.GameObjectId
+                || isItem;
 
             if (effect[0].type is ActionEffectType.Damage or ActionEffectType.Heal)
             {
@@ -444,6 +540,13 @@ public class TimelineManager : IDisposable
         var now = DateTime.Now;
         var type = GetActionType(set.Header.ActionID, set.Header.ActionType);
         var display = GetActionDisplay(set);
+        var itemIconFromStatus = false;
+        if (isItem && statusGain.Count > 0)
+        {
+            var statusIcon = statusGain.First().Item1;
+            display.icon = statusIcon;
+            itemIconFromStatus = true;
+        }
 
         if (Plugin.Settings.PrintClipping && type == TimelineItemType.GCD)
         {
@@ -494,7 +597,7 @@ public class TimelineManager : IDisposable
 
         if (effectItem == null) return;
 
-        effectItem.IsHq = set.Header.ActionType != ActionType.Item || set.Header.ActionID > 1000000;
+        effectItem.IsHq = !isItem || (!itemIconFromStatus && set.Header.ActionID > 1000000);
 
         foreach (var i in statusGain)
         {
@@ -512,6 +615,71 @@ public class TimelineManager : IDisposable
         if (set.Header.TargetCount > 0)
         {
             AddStatusLine(effectItem, set.TargetEffects[0].TargetID);
+        }
+
+        if (isItem)
+        {
+            if (statusGain.Count == 0)
+            {
+                UpdateItemIconFromPlayerStatuses(effectItem);
+            }
+        }
+    }
+
+    private static void UpdateItemIconFromPlayerStatuses(TimelineItem effectItem)
+    {
+        var startedAt = effectItem.StartTime;
+        Svc.Framework.RunOnTick(() =>
+        {
+            if (Player.Object == null)
+            {
+                return;
+            }
+
+            uint bestIcon = 0;
+            string? bestName = null;
+            var bestRemainingTime = 0f;
+
+            foreach (var statusObject in EnumerateStatuses(Player.Object.StatusList))
+            {
+                if (!TryGetStatusInfo(statusObject, out var statusId, out _, out _, out var remainingTime))
+                {
+                    continue;
+                }
+
+                var status = Svc.Data.GetExcelSheet<Status>()?.GetRow(statusId);
+                if (status == null || status.Value.Icon == 0)
+                {
+                    continue;
+                }
+
+                if (remainingTime < bestRemainingTime)
+                {
+                    continue;
+                }
+
+                bestRemainingTime = remainingTime;
+                bestIcon = status.Value.Icon;
+                bestName = status.Value.Name.ToString();
+            }
+
+            if (bestIcon == 0)
+            {
+                return;
+            }
+
+            effectItem.Icon = bestIcon;
+            effectItem.Name = bestName ?? effectItem.Name;
+            effectItem.IsHq = false;
+            UpdateEndTimeIfCurrent(effectItem, startedAt);
+        });
+    }
+
+    private static void UpdateEndTimeIfCurrent(TimelineItem effectItem, DateTime startedAt)
+    {
+        if (effectItem.StartTime == startedAt)
+        {
+            Instance?.UpdateEndTime(effectItem.EndTime);
         }
     }
 
@@ -698,7 +866,7 @@ public class TimelineManager : IDisposable
             AddItem(new TimelineItem()
             {
                 Name =  action?.Name.ToString() ?? string.Empty,
-                Icon =  actionId == 4 ? (ushort)118 //Mount
+                Icon =  actionId == 4 ? 118u //Mount
                         : action?.Icon ?? 0,
                 StartTime = DateTime.Now,
                 GCDTime = GCD,

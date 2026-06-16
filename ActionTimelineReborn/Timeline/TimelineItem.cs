@@ -11,7 +11,7 @@ namespace ActionTimelineReborn.Timeline;
 public class TimelineItem : ITimelineItem
 {
     public string? Name { get; set; }
-    public ushort Icon { get; set; }
+    public uint Icon { get; set; }
     public bool IsHq { get; set; }
     public DateTime StartTime { get; init; }
 
