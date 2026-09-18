@@ -15,6 +15,8 @@ namespace ActionTimelineReborn.Timeline;
 public class TimelineManager : IDisposable
 {
     internal const byte GCDCooldownGroup = 58;
+    private const byte BeastmasterCooldownGroup = 16;
+    private const uint BeastmasterClassJobCategory = 203;
 
     #region singleton
     public static void Initialize() { Instance = new TimelineManager(); }
@@ -217,6 +219,17 @@ public class TimelineManager : IDisposable
         if (actionId == 3) return TimelineItemType.OGCD; // Sprint
 
         var isRealGcd = action.CooldownGroup == GCDCooldownGroup || action.AdditionalCooldownGroup == GCDCooldownGroup;
+        var isBeastmasterAction = action.IsPlayerAction
+            && action.ClassJobCategory.Value.RowId == BeastmasterClassJobCategory
+            && (action.CooldownGroup == BeastmasterCooldownGroup
+                || action.AdditionalCooldownGroup == BeastmasterCooldownGroup
+                || action.RowId is 44884 or 44886 or 44887 or 44888 or 44889);
+
+        if (isBeastmasterAction)
+        {
+            return TimelineItemType.OGCD;
+        }
+
         return action.ActionCategory.Value.RowId == 1 // AutoAttack
             ? TimelineItemType.AutoAttack
             : !isRealGcd && action.ActionCategory.Value.RowId == 4 ? TimelineItemType.OGCD // Ability
@@ -571,10 +584,12 @@ public class TimelineManager : IDisposable
         }
 
         if (_lastItem != null && _lastItem.CastingTime > 0 && type == TimelineItemType.GCD
-            && _lastItem.State == TimelineItemState.Casting) // Finish the casting.
+            && _lastItem.State == TimelineItemState.Casting
+            && _lastItem.ActionId == set.Header.ActionID) // Finish the casting.
         {
             _lastItem.AnimationLockTime = set.Header.AnimationLockTime;
             _lastItem.Name = display.name;
+            _lastItem.ActionId = set.Header.ActionID;
             _lastItem.Icon = display.icon;
             _lastItem.Damage = damage;
             _lastItem.State = TimelineItemState.Finished;
@@ -588,6 +603,7 @@ public class TimelineManager : IDisposable
                 GCDTime = type == TimelineItemType.GCD ? GCD : 0,
                 Type = type,
                 Name = display.name,
+                ActionId = set.Header.ActionID,
                 Icon = display.icon,
                 Damage = damage,
                 State = TimelineItemState.Finished,
@@ -862,17 +878,19 @@ public class TimelineManager : IDisposable
             var actionId = *(ushort*)ptr;
 
             var action = Svc.Data.GetExcelSheet<Action>()?.GetRow(actionId);
+            var isMount = actionId == 4;
 
             AddItem(new TimelineItem()
             {
                 Name =  action?.Name.ToString() ?? string.Empty,
+                ActionId = actionId,
                 Icon =  actionId == 4 ? 118u //Mount
                         : action?.Icon ?? 0,
                 StartTime = DateTime.Now,
-                GCDTime = GCD,
-                CastingTime = Player.Object.TotalCastTime - Player.Object.CurrentCastTime,
-                Type = TimelineItemType.GCD,
-                State = TimelineItemState.Casting,
+                GCDTime = isMount ? 0 : GCD,
+                CastingTime = isMount ? 0 : Player.Object.TotalCastTime - Player.Object.CurrentCastTime,
+                Type = isMount ? TimelineItemType.OGCD : TimelineItemType.GCD,
+                State = isMount ? TimelineItemState.Finished : TimelineItemState.Casting,
             });
         }
         catch(Exception ex)

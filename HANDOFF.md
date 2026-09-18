@@ -4,7 +4,7 @@
 
 ## 当前维护状态
 
-- 当前发布版本：`7.5.0.6`
+- 当前发布版本：`7.5.5.2`
 - 主分支：`main`
 - 当前远端：`origin https://github.com/anmili2022/ActionTimelineReborn`
 - 插件框架：Dalamud 插件
@@ -49,13 +49,73 @@ dotnet --info
 gh auth status
 ```
 
-确认 Dalamud dev DLL 存在：
+确认 Dalamud dev DLL 存在。国服本地开发当前使用 XIVLauncherCN 路径：
 
 ```powershell
-Test-Path "$env:APPDATA\XIVLauncher\addon\Hooks\dev\Dalamud.dll"
+Test-Path "$env:APPDATA\XIVLauncherCN\addon\Hooks\dev\Dalamud.dll"
 ```
 
 > 注意：如果本地 `Hooks\dev` 里的 Dalamud DLL 和游戏实际运行的 Dalamud API 不一致，可能出现 `MissingMethodException`。遇到 API 相关问题优先查官方文档：<https://dalamud.dev/api/>。
+
+## 当前设计要点
+
+### 动作分类
+
+普通动作分类集中在 `ActionTimelineReborn/Timeline/TimelineManager.cs` 的 `GetActionType()`：
+
+- 自动攻击：`ActionCategory.RowId == 1`，显示为 `AutoAttack`。
+- 普通能力技：`ActionCategory.RowId == 4` 且不占普通 GCD 组，显示为 `OGCD`。
+- 普通 GCD：占用普通 GCD 组 `58` 的动作，显示为 `GCD`。
+- 冲刺：`ActionId == 3`，显示为 `OGCD`。
+
+驯兽师 7.55 动作需要特殊处理：
+
+- `ClassJobCategory.RowId == 203` 代表 BST。
+- 驯兽师本能技能使用独立冷却组 `16`，虽然 `ActionCategory` 是 `Weaponskill`，但不应参与普通 GCD 计算，当前暂时放到 `OGCD` 轨道。
+- 已明确兜底的动作：`44884`、`44886`、`44887`、`44888`、`44889`。
+- `44885` 是普通连击战技，仍应保留在 GCD 轨道。
+
+### 图标显示
+
+主图标类型为 `uint`，不要改回 `ushort`。原因：食物、爆发药和部分状态图标可能是 `216xxx` 这类高位图标 ID。
+
+食物和爆发药的显示策略：
+
+- `ActionType.Item` 以及数值 `65538` 都按物品事件处理。
+- 优先从 `Item` 表按名称、`ItemAction` 和 RowId 回查图标。
+- 如果物品事件带有状态增益，则使用实际获得的 Buff 图标。
+- 只有事件中没有状态增益时，才延迟扫描玩家状态栏兜底，避免爆发药被已有食物 Buff 覆盖。
+
+兽心协作技相关注意：
+
+- `44886 Beast Mode` 是通用动作，图标为 `3944`。
+- `44884/44887/44888/44889` 是具体本能技能，图标分别来自动作表。
+- 如果游戏事件只上报通用 `44886`，插件无法仅凭该 ID 知道当前热键实际变成哪一个具体技能，需要结合状态或后续事件继续判断。
+
+### 坐骑和施法完成
+
+`TimelineItem` 保存 `ActionId`，`ActionEffect` 完成读条时必须与 `_lastItem.ActionId` 一致，避免随机坐骑读条被后续技能错误覆盖。
+
+`ActionId == 4` 的坐骑动作不保持 `Casting` 状态，直接作为 `OGCD`/`Finished` 记录，避免污染 `_lastItem`。
+
+### 伤害边框
+
+图标上的黄色/橙色/红色边框来自 `ShowDamageType`：
+
+- 黄色：直击。
+- 橙色：暴击。
+- 红色：暴击直击。
+
+这不是 GCD/oGCD 分类标记，可在设置中关闭“显示暴击/直击类型”。
+
+### 上游合并注意
+
+上游 `7.5.5.1` 的重要变化：
+
+- `DrawHelper.Init()` 已被移除，纹理改为绘制时在主线程加载。保留本地中文 `Plugin.cs` 时不要再调用 `DrawHelper.Init()`。
+- 上游将 ECommons 更新到 `3.2.1.17`，`DotNet.ReproducibleBuilds` 更新到 `2.0.5`。
+- 上游重构了 `DrawHelper`、`TimelineItem`、`TimelineManager`、`TimelineWindow` 等文件，合并时要防止覆盖汉化、食物/药品图标修复、坐骑 ActionId 修复和驯兽师分类规则。
+- 上游英文 `Plugin.cs` 恢复了标题栏 Ko-fi 按钮；本地此前为兼容性移除过 `TitleBarButtons` 调用，如运行时再出现 `MissingMethodException`，优先保留本地兼容处理。
 
 ## 常用开发命令
 
@@ -394,18 +454,18 @@ is leaking hooks
     gh release create <版本号> output\ActionTimelineReborn.zip --title "<版本号>" --notes "<更新说明>"
     ```
 
-## 当前 7.5.0.6 发布内容
+## 当前 7.5.5.2 发布内容
 
 Release 链接：
 
 ```text
-https://github.com/anmili2022/ActionTimelineReborn/releases/tag/7.5.0.6
+https://github.com/anmili2022/ActionTimelineReborn/releases/tag/7.5.5.2
 ```
 
 下载地址：
 
 ```text
-https://github.com/anmili2022/ActionTimelineReborn/releases/download/7.5.0.6/ActionTimelineReborn.zip
+https://github.com/anmili2022/ActionTimelineReborn/releases/download/7.5.5.2/ActionTimelineReborn.zip
 ```
 
 主要变更：
@@ -424,3 +484,8 @@ https://github.com/anmili2022/ActionTimelineReborn/releases/download/7.5.0.6/Act
 - 帮助页补充 `/atl <时间轴名称>` 用法。
 - 修复食物和爆发药图标显示。
 - 插件简介改为纯中文并补充详细说明。
+- 同步上游 `7.5.5.1` 更新并保留汉化。
+- 采用上游纹理主线程加载修复，移除 `DrawHelper.Init()` 调用。
+- 更新国服本地 Dalamud 依赖路径到 `XIVLauncherCN`。
+- 修复随机坐骑后续动作误关联。
+- 驯兽师本能技能暂时归入 oGCD 轨道。

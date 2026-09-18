@@ -92,8 +92,6 @@ public class Plugin : IDalamudPlugin
             TimelineManager.Initialize();
             timelineInitialized = true;
 
-            DrawHelper.Init();
-
             try
             {
                 Settings = pluginInterface.GetPluginConfig() as Settings ?? new Settings();
