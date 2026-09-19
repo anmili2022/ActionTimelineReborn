@@ -458,6 +458,17 @@ public class TimelineManager : IDisposable
         return actionType == ActionType.Item || (uint)actionType == 65538;
     }
 
+    private static string AddDamageSuffix(string name, DamageType damage)
+    {
+        return damage switch
+        {
+            DamageType.CriticalDirect => $"{name}·直爆",
+            DamageType.Direct => $"{name}·直击",
+            DamageType.Critical => $"{name}·暴击",
+            _ => name,
+        };
+    }
+
     private void CancelCasting()
     {
         if (_lastItem == null || _lastItem.CastingTime == 0) return;
@@ -560,6 +571,7 @@ public class TimelineManager : IDisposable
             display.icon = statusIcon;
             itemIconFromStatus = true;
         }
+        display.name = AddDamageSuffix(display.name, damage);
 
         if (Plugin.Settings.PrintClipping && type == TimelineItemType.GCD)
         {
